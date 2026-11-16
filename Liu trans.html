@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="同声翻译">
+<meta name="theme-color" content="#151514">
+<title>同声翻译</title>
+<style>
+  :root{--bg:#151514;--card:#1f1e1c;--ink:#f1eee8;--muted:#9b968c;--line:#33312d;--acc:#7fb8c9;--them:#e0a27f;--warn:#e5c060;--warn-soft:#2f2914;--red:#e5534b}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system,"PingFang SC",sans-serif}
+  body{display:flex;flex-direction:column;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+  header{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+  header h1{font-size:17px;margin:0;flex:1}
+  .icon{background:none;border:0;color:var(--muted);font-size:22px;padding:4px 6px}
+  .bar{display:flex;gap:8px;padding:10px 14px;flex-wrap:wrap;font-size:13px;color:var(--muted);align-items:center}
+  select,input{font:inherit;font-size:15px;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:9px;padding:6px 8px}
+  #log{flex:1;overflow-y:auto;padding:6px 14px 14px;display:flex;flex-direction:column;gap:12px}
+  .item{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:11px 13px}
+  .item.them{border-left:4px solid var(--them)} .item.me{border-left:4px solid var(--acc)}
+  .src{color:var(--muted);font-size:14px}
+  .tr{font-size:21px;font-weight:560;margin-top:4px}
+  .meaning{margin-top:8px;background:var(--warn-soft);border-radius:9px;padding:7px 9px;font-size:14px}
+  .meaning b{color:var(--warn)}
+  .live{color:var(--muted);font-style:italic;min-height:24px;padding:0 14px 6px}
+  .empty{margin:auto;text-align:center;color:var(--muted);max-width:320px;font-size:14px}
+  footer{padding:10px 14px 16px;border-top:1px solid var(--line);display:flex;gap:10px}
+  .big{flex:1;font:inherit;font-size:18px;font-weight:600;border:0;border-radius:14px;padding:15px;color:#151514;background:var(--acc)}
+  .big.on{background:var(--red);color:#fff}
+  .big.alt{flex:0 0 auto;background:var(--card);color:var(--ink);border:1px solid var(--line)}
+  .big.alt.on{background:var(--acc);color:#151514}
+  .status{font-size:13px;color:var(--muted);padding:0 14px}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--muted);margin-right:6px;vertical-align:middle}
+  .dot.listen{background:var(--red);animation:p 1.2s infinite} .dot.work{background:var(--warn)} .dot.speak{background:var(--acc)}
+  @keyframes p{50%{opacity:.3}}
+  #settings{position:fixed;inset:0;background:var(--bg);display:none;flex-direction:column;padding:calc(env(safe-area-inset-top) + 14px) 18px 18px;gap:14px;overflow-y:auto;z-index:5}
+  #settings.open{display:flex}
+  #settings label{display:flex;flex-direction:column;gap:5px;font-size:14px;color:var(--muted)}
+  #settings .chk{flex-direction:row;align-items:center;gap:8px;color:var(--ink)}
+  .note{font-size:13px;color:var(--muted)}
+  .err{color:var(--red);font-size:14px}
+  #show{position:fixed;inset:0;background:var(--card);display:none;flex-direction:column;z-index:6}
+  #show.open{display:flex}
+  #showText{flex:1;display:flex;align-items:center;padding:28px;font-size:clamp(28px,8vw,52px);font-weight:620;line-height:1.3}
+  #showText.flip{transform:rotate(180deg)}
+  .showbar{display:flex;gap:10px;padding:14px;justify-content:center}
+  .sbtn{font:inherit;border-radius:99px;padding:8px 16px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+</style>
+</head>
+<body>
+<header>
+  <h1>同声翻译</h1>
+  <button class="icon" id="openSet" aria-label="设置">⚙︎</button>
+</header>
+<div class="bar">
+  <label>对方说 <select id="theirLang"></select></label>
+  <label>翻成 <select id="myLang"></select></label>
+</div>
+<div class="status" id="status"><span class="dot" id="dot"></span><span id="statusText">未开始</span></div>
+<div class="live" id="live"></div>
+<main id="log"><div class="empty" id="empty">戴上耳机，选好对方的语言，点「开始」。之后对方说一句，你耳机里就会听到翻译。<br><br>第一次使用请先点右上角 ⚙︎ 填入 API 密钥。</div></main>
+<footer>
+  <button class="big alt" id="meBtn">我说</button>
+  <button class="big" id="startBtn">开始</button>
+</footer>
+
+<div id="settings">
+  <h2 style="margin:0">设置</h2>
+  <label>Claude API 密钥
+    <input id="key" type="password" placeholder="sk-ant-..." autocomplete="off">
+    <span class="note">只保存在这部手机的浏览器里，直接发给 Anthropic，不经过其他地方。</span>
+  </label>
+  <label>模型
+    <select id="model">
+      <option value="claude-haiku-5-5">Haiku 5.5（最快，便宜）</option>
+      <option value="claude-sonnet-5-5">Sonnet 5.5（更准，稍慢）</option>
+    </select>
+  </label>
+  <label class="chk"><input type="checkbox" id="pauseWhileSpeak" checked> 朗读翻译时暂停收听（避免把翻译声音也录进去）</label>
+  <label class="chk"><input type="checkbox" id="speakMeaning"> 有言外之意时也读出来</label>
+  <label>停顿多久算一句话说完
+    <select id="gap">
+      <option value="900">0.9 秒（快）</option>
+      <option value="1300" selected>1.3 秒</option>
+      <option value="2000">2 秒（对方说话慢）</option>
+    </select>
+  </label>
+  <button class="big" id="closeSet">保存</button>
+</div>
+
+<div id="show">
+  <div id="showText"></div>
+  <div class="showbar">
+    <button class="sbtn" id="flip">翻转</button>
+    <button class="sbtn" id="closeShow">关闭</button>
+  </div>
+</div>
+
+<script>
+const LANGS=[["zh-CN","中文（普通话）"],["zh-HK","粤语"],["zh-TW","中文（台湾）"],["en-US","英语（美国）"],["en-GB","英语（英国）"],["fr-FR","法语"],["es-ES","西班牙语（西班牙）"],["es-MX","西班牙语（墨西哥）"],["de-DE","德语"],["it-IT","意大利语"],["pt-BR","葡萄牙语（巴西）"],["pt-PT","葡萄牙语（葡萄牙）"],["ja-JP","日语"],["ko-KR","韩语"],["ru-RU","俄语"],["ar-SA","阿拉伯语"],["th-TH","泰语"],["vi-VN","越南语"],["id-ID","印尼语"],["tr-TR","土耳其语"],["nl-NL","荷兰语"],["hi-IN","印地语"]];
+const $=id=>document.getElementById(id);
+const S={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+for(const [c,n] of LANGS){$("theirLang").add(new Option(n,c));$("myLang").add(new Option(n,c));}
+$("theirLang").value=S.get("theirLang","en-US");
+$("myLang").value=S.get("myLang","zh-CN");
+$("key").value=S.get("key","");
+$("model").value=S.get("model","claude-haiku-5-5");
+$("pauseWhileSpeak").checked=S.get("pws","1")==="1";
+$("speakMeaning").checked=S.get("sm","0")==="1";
+$("gap").value=S.get("gap","1300");
+$("theirLang").onchange=()=>{S.set("theirLang",$("theirLang").value);restartIfRunning();};
+$("myLang").onchange=()=>{S.set("myLang",$("myLang").value);restartIfRunning();};
+$("openSet").onclick=()=>$("settings").classList.add("open");
+$("closeSet").onclick=()=>{S.set("key",$("key").value.trim());S.set("model",$("model").value);S.set("pws",$("pauseWhileSpeak").checked?"1":"0");S.set("sm",$("speakMeaning").checked?"1":"0");S.set("gap",$("gap").value);$("settings").classList.remove("open");};
+$("flip").onclick=()=>$("showText").classList.toggle("flip");
+$("closeShow").onclick=()=>$("show").classList.remove("open");
+const nameOf=c=>(LANGS.find(l=>l[0]===c)||[c,c])[1];
+
+function status(kind,text){$("dot").className="dot "+(kind||"");$("statusText").textContent=text;}
+
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let rec=null, running=false, mode="them", transcript="", gapTimer=null, speaking=false;
+const history=[]; const jobs=[]; let busy=false;
+
+function makeRec(){
+  const r=new SR();
+  r.continuous=true; r.interimResults=true;
+  r.lang= mode==="them" ? $("theirLang").value : $("myLang").value;
+  r.onresult=e=>{
+    let t="";for(let i=0;i<e.results.length;i++)t+=e.results[i][0].transcript;
+    transcript=t; $("live").textContent=t;
+    clearTimeout(gapTimer);
+    gapTimer=setTimeout(()=>{try{r.stop()}catch(_){}} , +$("gap").value);
+  };
+  r.onerror=e=>{ if(e.error==="not-allowed"||e.error==="service-not-allowed"){running=false;ui();status("","没有麦克风权限：请在 设置 → Safari → 麦克风 中允许");} };
+  r.onend=()=>{
+    clearTimeout(gapTimer);
+    const text=transcript.trim(); transcript=""; $("live").textContent="";
+    if(text) enqueue(text, mode);
+    rec=null;
+    if(running && !(speaking && $("pauseWhileSpeak").checked)) listen();
+  };
+  return r;
+}
+function listen(){
+  if(!running||rec) return;
+  try{ rec=makeRec(); rec.start(); status("listen", mode==="them" ? "正在听对方（"+nameOf($("theirLang").value)+"）" : "正在听你说（"+nameOf($("myLang").value)+"）"); }
+  catch(e){ rec=null; setTimeout(listen,400); }
+}
+function stopListen(){ clearTimeout(gapTimer); if(rec){ try{rec.stop()}catch(_){} } }
+function restartIfRunning(){ if(running){ stopListen(); } }
+
+function ui(){
+  $("startBtn").textContent=running?"停止":"开始";
+  $("startBtn").classList.toggle("on",running);
+  $("meBtn").classList.toggle("on",mode==="me");
+  $("meBtn").textContent= mode==="me" ? "我说中…" : "我说";
+  if(!running) status("","已停止");
+}
+
+$("startBtn").onclick=()=>{
+  if(!SR){ status("","这个浏览器不支持语音识别，请用 iPhone 上的 Safari 打开"); return; }
+  if(!S.get("key","")){ $("settings").classList.add("open"); return; }
+  unlockSpeech();
+  running=!running;
+  if(running){ $("empty")?.remove(); listen(); } else { mode="them"; stopListen(); speechSynthesis.cancel(); }
+  ui();
+};
+$("meBtn").onclick=()=>{
+  if(!running){ $("startBtn").click(); if(!running) return; }
+  unlockSpeech();
+  mode = mode==="me" ? "them" : "me";
+  ui(); stopListen(); // onend restarts with new language
+};
+
+function unlockSpeech(){ try{ const u=new SpeechSynthesisUtterance(" "); u.volume=0; speechSynthesis.speak(u);}catch(e){} }
+
+function pickVoice(lang){
+  const vs=speechSynthesis.getVoices(); const base=lang.split("-")[0];
+  return vs.find(v=>v.lang===lang)||vs.find(v=>v.lang.replace("_","-").startsWith(base))||null;
+}
+function say(text, lang){
+  return new Promise(res=>{
+    try{
+      const u=new SpeechSynthesisUtterance(text); u.lang=lang; const v=pickVoice(lang); if(v) u.voice=v; u.rate=1.05;
+      u.onend=u.onerror=()=>res(); speechSynthesis.speak(u);
+    }catch(e){res()}
+  });
+}
+async function speakOut(text, lang, extra){
+  speaking=true;
+  if($("pauseWhileSpeak").checked) stopListen();
+  status("speak","正在朗读翻译");
+  await say(text, lang);
+  if(extra) await say(extra, lang);
+  speaking=false;
+  if(running) listen();
+}
+
+function enqueue(text, who){ jobs.push({text,who}); pump(); }
+async function pump(){
+  if(busy) return; const j=jobs.shift(); if(!j) return; busy=true;
+  try{ await handle(j); }catch(e){ addError(e); }
+  busy=false; pump();
+}
+
+function context(){
+  return history.slice(-10).map(h=>(h.who==="them"?"OTHER: ":"USER: ")+h.text+" => "+h.tr).join("\n")||"(start of conversation)";
+}
+
+async function callClaude(system, user){
+  const res=await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{"content-type":"application/json","x-api-key":S.get("key",""),"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify({model:S.get("model","claude-haiku-5-5"),max_tokens:500,system,messages:[{role:"user",content:user}]})
+  });
+  const data=await res.json();
+  if(!res.ok) throw new Error((data.error&&data.error.message)||("HTTP "+res.status));
+  const t=data.content.map(c=>c.text||"").join("");
+  return JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}")+1));
+}
+
+const SYSTEM="You are a world-class live interpreter. You understand slang, dialects, mixed languages, sarcasm, politeness conventions and cultural subtext. Input comes from speech recognition and may contain recognition errors: infer what the speaker most likely meant. Always answer with ONLY a JSON object, no markdown.";
+
+async function handle({text, who}){
+  status("work","正在翻译…");
+  const my=nameOf($("myLang").value), their=nameOf($("theirLang").value);
+  const item=document.createElement("div"); item.className="item "+who;
+  const src=document.createElement("div"); src.className="src"; src.textContent=text;
+  const tr=document.createElement("div"); tr.className="tr"; tr.textContent="…";
+  item.append(src,tr); $("log").append(item); $("log").scrollTop=1e9;
+
+  if(who==="them"){
+    const r=await callClaude(SYSTEM,
+`User's language: ${my}. The other person is expected to speak ${their}, but detect the actual language (it may be mixed).
+Conversation so far:
+${context()}
+
+The OTHER person just said: """${text}"""
+
+Return {"translation": "natural translation into ${my}, short and spoken-style, keeping tone", "meaning": "only if the real intent differs from the literal words (polite refusal, sarcasm, hint, idiom), one short sentence in ${my}; else empty string"}`);
+    tr.textContent=r.translation;
+    if(r.meaning){ const m=document.createElement("div"); m.className="meaning"; m.innerHTML="<b>言外之意：</b>"; m.append(r.meaning); item.append(m); }
+    history.push({who,text,tr:r.translation});
+    $("log").scrollTop=1e9;
+    await speakOut(r.translation, $("myLang").value, $("speakMeaning").checked && r.meaning ? r.meaning : "");
+  } else {
+    const r=await callClaude(SYSTEM,
+`User's language: ${my}. Translate what the USER says into ${their}, so it sounds natural and appropriately polite to a native speaker.
+Conversation so far:
+${context()}
+
+The USER just said: """${text}"""
+
+Return {"translation": "the translation in ${their}", "tip": "only if you softened or adjusted something for that culture, one short sentence in ${my}; else empty string"}`);
+    tr.textContent=r.translation;
+    if(r.tip){ const m=document.createElement("div"); m.className="meaning"; m.innerHTML="<b>提示：</b>"; m.append(r.tip); item.append(m); }
+    const b=document.createElement("button"); b.className="sbtn"; b.style.marginTop="8px"; b.textContent="大字给对方看";
+    b.onclick=()=>{ $("showText").textContent=r.translation; $("showText").classList.remove("flip"); $("show").classList.add("open"); };
+    item.append(b);
+    history.push({who,text,tr:r.translation});
+    $("log").scrollTop=1e9;
+    await speakOut(r.translation, $("theirLang").value);
+  }
+  if(running && !rec && !speaking) listen();
+  if(!running) status("","已停止");
+}
+
+function addError(e){
+  const d=document.createElement("div"); d.className="item err";
+  d.textContent="翻译失败："+(e&&e.message||e)+"（检查网络和 API 密钥）";
+  $("log").append(d); $("log").scrollTop=1e9;
+  if(running) listen();
+}
+
+if(speechSynthesis.onvoiceschanged!==undefined) speechSynthesis.onvoiceschanged=()=>{};
+document.addEventListener("visibilitychange",()=>{ if(document.hidden && running){ running=false; mode="them"; stopListen(); ui(); status("","切到后台后已暂停，回来后点「开始」继续"); } });
+</script>
+</body>
+</html>
