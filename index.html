@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="同声">
+<meta name="theme-color" content="#0b0b10">
+<title>同声</title>
+<style>
+  :root{
+    --bg:#0b0b10; --ink:#f4f2ee; --muted:#8d8a95; --line:rgba(255,255,255,.08);
+    --text:#5fd4c4; --voice:#a98bff; --work:#f2c35b; --red:#ff6b6b;
+    --glass:rgba(255,255,255,.06);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font:16px/1.5 -apple-system,"SF Pro Text","PingFang SC",sans-serif;overflow:hidden;
+    -webkit-user-select:none;user-select:none}
+  body{display:flex;flex-direction:column;
+    padding:calc(env(safe-area-inset-top) + 8px) 18px calc(env(safe-area-inset-bottom) + 14px)}
+  body::before{content:"";position:fixed;inset:-20%;z-index:-1;pointer-events:none;
+    background:radial-gradient(40% 35% at 50% 42%,var(--glow,rgba(95,212,196,.10)),transparent 70%);
+    transition:background .6s}
+  body[data-mode="voice"]{--glow:rgba(169,139,255,.16)}
+  body[data-state="work"]{--glow:rgba(242,195,91,.12)}
+
+  .top{display:flex;align-items:center;gap:10px;height:44px}
+  .brand{font-weight:700;letter-spacing:.08em;font-size:15px;flex:1}
+  .chip{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);
+    background:var(--glass);border:1px solid var(--line);border-radius:99px;padding:6px 12px}
+  .chip b{color:var(--ink);font-weight:600}
+  .ibtn{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:var(--glass);
+    color:var(--muted);display:grid;place-items:center}
+
+  .stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;min-height:0}
+  .orb-wrap{position:relative;width:min(62vw,280px);aspect-ratio:1;touch-action:manipulation}
+  .ring{position:absolute;inset:0;border-radius:50%;border:1.5px solid var(--c,var(--text));opacity:0}
+  body[data-state="listen"] .ring{animation:ripple 2.4s cubic-bezier(.2,.6,.3,1) infinite}
+  body[data-state="listen"] .ring:nth-child(2){animation-delay:.8s}
+  body[data-state="listen"] .ring:nth-child(3){animation-delay:1.6s}
+  @keyframes ripple{0%{transform:scale(.92);opacity:.55}100%{transform:scale(1.55);opacity:0}}
+  .orb{position:absolute;inset:0;border-radius:50%;border:0;padding:0;cursor:pointer;
+    background:
+      radial-gradient(circle at 50% 38%,rgba(255,255,255,.16),transparent 55%),
+      radial-gradient(circle at 50% 50%,color-mix(in srgb,var(--c,var(--text)) 30%,#14141c),#111118 72%);
+    box-shadow:0 0 0 1.5px color-mix(in srgb,var(--c,var(--text)) 55%,transparent),
+               0 0 60px -6px color-mix(in srgb,var(--c,var(--text)) 45%,transparent),
+               inset 0 -20px 40px rgba(0,0,0,.35);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--ink);
+    transition:transform .18s, box-shadow .4s}
+  .orb:active{transform:scale(.97)}
+  body{--c:var(--text)} body[data-mode="voice"]{--c:var(--voice)} body[data-state="work"]{--c:var(--work)}
+  .orb .glyph{height:44px;display:flex;align-items:center;gap:5px}
+  .bar{width:5px;border-radius:3px;background:var(--c);height:10px;transition:height .2s}
+  body[data-state="listen"] .bar{animation:eq 1s ease-in-out infinite}
+  body[data-state="speak"] .bar{animation:eq .6s ease-in-out infinite}
+  .bar:nth-child(2){animation-delay:.15s}.bar:nth-child(3){animation-delay:.3s}.bar:nth-child(4){animation-delay:.45s}.bar:nth-child(5){animation-delay:.6s}
+  @keyframes eq{0%,100%{height:10px}50%{height:38px}}
+  .spin{display:none;width:40px;height:40px;border-radius:50%;border:3px solid rgba(255,255,255,.12);border-top-color:var(--work);animation:sp 0.9s linear infinite}
+  body[data-state="work"] .spin{display:block} body[data-state="work"] .glyph{display:none}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .orb .lbl{font-size:15px;font-weight:600}
+  .orb .sub{font-size:12px;color:var(--muted)}
+  .live{min-height:24px;max-width:90%;text-align:center;color:var(--muted);font-size:15px}
+
+  .caption{min-height:150px;background:var(--glass);border:1px solid var(--line);border-radius:22px;
+    padding:16px 18px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    -webkit-user-select:text;user-select:text}
+  .caption .src{color:var(--muted);font-size:14px}
+  .caption .tr{font-size:24px;line-height:1.4;font-weight:600;margin-top:4px}
+  .caption .hint{color:var(--muted);font-size:14px;text-align:center;padding-top:28px}
+  .meaning{margin-top:10px;font-size:14px;color:#f5dfa6;background:rgba(242,195,91,.10);border-radius:12px;padding:8px 10px}
+  .notice{margin-top:10px;font-size:13px;color:var(--work)}
+  .err{color:var(--red);font-size:14px}
+
+  .sheet{position:fixed;inset:0;background:rgba(5,5,8,.96);z-index:10;display:none;flex-direction:column;
+    padding:calc(env(safe-area-inset-top) + 18px) 20px calc(env(safe-area-inset-bottom) + 20px);overflow-y:auto}
+  .sheet.open{display:flex}
+  .sheet h2{margin:0 0 4px;font-size:24px}
+  .sheet p{color:var(--muted);margin:0 0 18px;font-size:14px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:22px}
+  .opt{font:inherit;font-size:15px;color:var(--ink);background:var(--glass);border:1px solid var(--line);border-radius:14px;padding:12px 10px;text-align:left}
+  .opt.on{border-color:var(--text);background:rgba(95,212,196,.12)}
+  .field{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;font-size:14px;color:var(--muted)}
+  .field input,.field select{font:inherit;font-size:16px;color:var(--ink);background:var(--glass);border:1px solid var(--line);border-radius:12px;padding:11px 12px}
+  .cta{font:inherit;font-size:17px;font-weight:650;border:0;border-radius:16px;padding:15px;background:var(--text);color:#06221f;margin-top:auto}
+  .row{display:flex;gap:10px;align-items:center}
+  .hist{display:flex;flex-direction:column;gap:10px}
+  .hitem{background:var(--glass);border:1px solid var(--line);border-radius:14px;padding:10px 12px;-webkit-user-select:text;user-select:text}
+  .hitem .src{color:var(--muted);font-size:13px}.hitem .tr{font-size:17px;font-weight:550}
+  .close{position:absolute;right:16px;top:calc(env(safe-area-inset-top) + 14px)}
+</style>
+</head>
+<body data-state="idle" data-mode="text">
+
+<div class="top">
+  <div class="brand">同声</div>
+  <button class="chip" id="langChip">对方 <b id="theirName">自动识别</b></button>
+  <button class="ibtn" id="histBtn" aria-label="记录">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+  </button>
+  <button class="ibtn" id="setBtn" aria-label="设置">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+  </button>
+</div>
+
+<div class="stage">
+  <div class="orb-wrap">
+    <div class="ring"></div><div class="ring"></div><div class="ring"></div>
+    <button class="orb" id="orb" aria-label="开始">
+      <div class="glyph"><i class="bar"></i><i class="bar"></i><i class="bar"></i><i class="bar"></i><i class="bar"></i></div>
+      <div class="spin"></div>
+      <div class="lbl" id="orbLbl">轻点开始</div>
+      <div class="sub" id="orbSub">单击 文字 · 双击 语音</div>
+    </button>
+  </div>
+  <div class="live" id="live"></div>
+</div>
+
+<div class="caption" id="caption"><div class="hint">翻译会显示在这里</div></div>
+
+<!-- first-run / settings -->
+<div class="sheet" id="setup">
+  <h2>你想听到什么语言？</h2>
+  <p>对方说什么语言都会自动翻成这个语言。只需设置一次。</p>
+  <div class="grid" id="myGrid"></div>
+  <div class="field">Claude API 密钥
+    <input id="key" type="password" placeholder="sk-ant-..." autocomplete="off">
+  </div>
+  <div class="field">翻译模型
+    <select id="model">
+      <option value="claude-haiku-5-5">快速（Haiku）</option>
+      <option value="claude-sonnet-5-5">更准（Sonnet）</option>
+    </select>
+  </div>
+  <button class="cta" id="saveSetup">完成</button>
+</div>
+
+<!-- other person's language (fallback) -->
+<div class="sheet" id="langSheet">
+  <button class="ibtn close" id="closeLang">✕</button>
+  <h2>对方的语言</h2>
+  <p>一般不用选，会自动识别并切换。如果一直认不准，在这里指定一次就行。</p>
+  <div class="grid" id="theirGrid"></div>
+</div>
+
+<!-- history -->
+<div class="sheet" id="histSheet">
+  <button class="ibtn close" id="closeHist">✕</button>
+  <h2>对话记录</h2>
+  <p>本次打开期间的翻译。</p>
+  <div class="hist" id="hist"></div>
+</div>
+
+<script>
+const LANGS=[["zh-CN","中文"],["en-US","English"],["fr-FR","Français"],["es-ES","Español"],["de-DE","Deutsch"],["it-IT","Italiano"],["pt-BR","Português"],["ja-JP","日本語"],["ko-KR","한국어"],["ru-RU","Русский"],["ar-SA","العربية"],["th-TH","ไทย"],["vi-VN","Tiếng Việt"],["id-ID","Indonesia"],["tr-TR","Türkçe"],["nl-NL","Nederlands"],["zh-HK","粵語"],["hi-IN","हिन्दी"]];
+const ZH={"zh-CN":"中文","en-US":"英语","fr-FR":"法语","es-ES":"西班牙语","de-DE":"德语","it-IT":"意大利语","pt-BR":"葡萄牙语","ja-JP":"日语","ko-KR":"韩语","ru-RU":"俄语","ar-SA":"阿拉伯语","th-TH":"泰语","vi-VN":"越南语","id-ID":"印尼语","tr-TR":"土耳其语","nl-NL":"荷兰语","zh-HK":"粤语","hi-IN":"印地语"};
+const $=id=>document.getElementById(id);
+const S={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+const zhName=c=>ZH[c]||c;
+
+// map any BCP-47 the model returns to a recognizer locale we support
+function normLang(code){
+  if(!code) return null; code=code.replace("_","-");
+  const exact=LANGS.find(l=>l[0].toLowerCase()===code.toLowerCase()); if(exact) return exact[0];
+  const base=code.split("-")[0].toLowerCase();
+  if(base==="yue") return "zh-HK";
+  const m=LANGS.find(l=>l[0].split("-")[0]===base); return m?m[0]:null;
+}
+
+let myLang=S.get("myLang",""), theirLang=S.get("theirLang","en-US"), theirFixed=S.get("theirFixed","0")==="1";
+function grid(el, selected, onPick){
+  el.innerHTML="";
+  for(const [c,n] of LANGS){
+    const b=document.createElement("button"); b.className="opt"+(c===selected?" on":""); b.textContent=n+(ZH[c]&&ZH[c]!==n?"  ·  "+ZH[c]:"");
+    b.onclick=()=>{[...el.children].forEach(x=>x.classList.remove("on")); b.classList.add("on"); onPick(c);};
+    el.append(b);
+  }
+}
+let pickMy=myLang||"zh-CN";
+grid($("myGrid"), pickMy, c=>pickMy=c);
+$("key").value=S.get("key",""); $("model").value=S.get("model","claude-haiku-5-5");
+$("saveSetup").onclick=()=>{
+  myLang=pickMy; S.set("myLang",myLang); S.set("key",$("key").value.trim()); S.set("model",$("model").value);
+  $("setup").classList.remove("open");
+};
+$("setBtn").onclick=()=>{ grid($("myGrid"), myLang||"zh-CN", c=>pickMy=c); $("setup").classList.add("open"); };
+if(!myLang || !S.get("key","")) $("setup").classList.add("open");
+
+function showTheir(){ $("theirName").textContent = theirFixed ? zhName(theirLang) : (S.get("seen","0")==="1" ? zhName(theirLang)+" · 自动" : "自动识别"); }
+showTheir();
+$("langChip").onclick=()=>{
+  grid($("theirGrid"), theirFixed?theirLang:"", c=>{ theirLang=c; theirFixed=true; S.set("theirLang",c); S.set("theirFixed","1"); showTheir(); $("langSheet").classList.remove("open"); restart(); });
+  const auto=document.createElement("button"); auto.className="opt"+(theirFixed?"":" on"); auto.textContent="自动识别";
+  auto.onclick=()=>{ theirFixed=false; S.set("theirFixed","0"); showTheir(); $("langSheet").classList.remove("open"); };
+  $("theirGrid").prepend(auto);
+  $("langSheet").classList.add("open");
+};
+$("closeLang").onclick=()=>$("langSheet").classList.remove("open");
+$("histBtn").onclick=()=>$("histSheet").classList.add("open");
+$("closeHist").onclick=()=>$("histSheet").classList.remove("open");
+
+// ---------- state ----------
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let running=false, mode="text", rec=null, transcript="", gapTimer=null, speaking=false;
+const history=[], jobs=[]; let busy=false;
+
+function setState(st){
+  document.body.dataset.state=st; document.body.dataset.mode=mode;
+  const L=$("orbLbl"), Sb=$("orbSub");
+  if(st==="idle"){ L.textContent="轻点开始"; Sb.textContent="单击 文字 · 双击 语音"; }
+  if(st==="listen"){ L.textContent= mode==="voice"?"正在听 · 语音":"正在听 · 文字"; Sb.textContent="单击停止 · 双击切换"; }
+  if(st==="work"){ L.textContent="翻译中"; Sb.textContent=""; }
+  if(st==="speak"){ L.textContent="正在朗读"; Sb.textContent="单击停止"; }
+}
+
+// ---------- tap handling: single vs double, gesture-safe ----------
+let tapTimer=null;
+$("orb").addEventListener("click",()=>{
+  if(!SR){ caption("err","请用 iPhone 上的 Safari 打开这个网页"); return; }
+  if(!S.get("key","")||!myLang){ $("setup").classList.add("open"); return; }
+  if(tapTimer){ // second tap
+    clearTimeout(tapTimer); tapTimer=null;
+    mode = mode==="voice" ? "text" : "voice";
+    if(!running){ mode="voice"; }
+    setState(document.body.dataset.state==="idle"?"listen":document.body.dataset.state);
+    return;
+  }
+  unlockSpeech();
+  if(!running){
+    // start immediately inside the gesture; a second tap within 300ms upgrades to voice
+    running=true; mode="text"; listen();
+    tapTimer=setTimeout(()=>{tapTimer=null;},300);
+  } else {
+    tapTimer=setTimeout(()=>{ tapTimer=null; stopAll(); },300);
+  }
+});
+
+function stopAll(){
+  running=false; clearTimeout(gapTimer);
+  try{ speechSynthesis.cancel(); }catch(e){}
+  speaking=false;
+  if(rec){ try{rec.stop()}catch(_){} }
+  setState(busy?"work":"idle");
+}
+
+function unlockSpeech(){ try{ const u=new SpeechSynthesisUtterance(" "); u.volume=0; speechSynthesis.speak(u);}catch(e){} }
+
+// ---------- recognition ----------
+function listen(){
+  if(!running||rec||speaking) return;
+  const r=new SR(); rec=r;
+  r.lang=theirLang; r.continuous=true; r.interimResults=true;
+  r.onresult=e=>{
+    let t=""; for(let i=0;i<e.results.length;i++) t+=e.results[i][0].transcript;
+    transcript=t; $("live").textContent=t;
+    clearTimeout(gapTimer); gapTimer=setTimeout(()=>{ try{r.stop()}catch(_){} },1300);
+  };
+  r.onerror=e=>{
+    if(e.error==="not-allowed"||e.error==="service-not-allowed"){ running=false; setState("idle"); caption("err","没有麦克风权限：请到 设置 → Safari → 麦克风，选择「允许」"); }
+  };
+  r.onend=()=>{
+    clearTimeout(gapTimer);
+    const text=transcript.trim(), lang=r.lang; transcript=""; $("live").textContent=""; rec=null;
+    if(text) jobs.push({text,lang}), pump();
+    if(running && !speaking) setTimeout(listen,120);
+  };
+  try{ r.start(); setState("listen"); }catch(e){ rec=null; if(running) setTimeout(listen,400); }
+}
+function restart(){ if(rec){ try{rec.stop()}catch(_){} } }
+
+// ---------- translation ----------
+async function pump(){
+  if(busy) return; const j=jobs.shift(); if(!j) return; busy=true;
+  if(!running || !rec) setState("work");
+  try{ await handle(j); }catch(e){ caption("err","翻译失败："+(e.message||e)+"（检查网络或 API 密钥）"); }
+  busy=false;
+  if(running && !speaking && !rec) listen();
+  else if(!running) setState("idle");
+  pump();
+}
+
+async function callClaude(prompt){
+  const res=await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{"content-type":"application/json","x-api-key":S.get("key",""),"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify({model:S.get("model","claude-haiku-5-5"),max_tokens:450,
+      system:"You are a world-class live interpreter. You understand slang, dialects, mixed languages, sarcasm, politeness conventions and cultural subtext. Output ONLY a JSON object, no markdown.",
+      messages:[{role:"user",content:prompt}]})
+  });
+  const data=await res.json();
+  if(!res.ok) throw new Error((data.error&&data.error.message)||("HTTP "+res.status));
+  const t=data.content.map(c=>c.text||"").join("");
+  return JSON.parse(t.slice(t.indexOf("{"),t.lastIndexOf("}")+1));
+}
+
+async function handle({text,lang}){
+  const target=zhName(myLang)+" ("+myLang+")";
+  const ctx=history.slice(-8).map(h=>"- "+h.src+" => "+h.tr).join("\n")||"(none)";
+  const r=await callClaude(
+`The speech recognizer was set to ${lang}. It transcribed: """${text}"""
+If the person was actually speaking another language, the recognizer will have produced words that only sound similar; in that case work out from the sounds what language they were really speaking and, if you can, what they meant.
+
+Earlier in this conversation:
+${ctx}
+
+Return:
+{"spoken_lang": "BCP-47 code of the language the person was really speaking (best guess)",
+ "wrong_recognizer": true if the transcript looks like a different language forced into ${lang} words, else false,
+ "translation": "natural spoken-style translation into ${target}, keeping tone; if wrong_recognizer is true give your best guess or an empty string",
+ "meaning": "only if the real intent differs from the literal words (polite refusal, sarcasm, hint, idiom), one short sentence in ${target}; else empty string"}`);
+
+  const detected=normLang(r.spoken_lang);
+  let notice="";
+  if(!theirFixed && detected && detected!==theirLang && detected!==myLang){
+    theirLang=detected; S.set("theirLang",detected); S.set("seen","1"); showTheir();
+    if(r.wrong_recognizer) notice="听起来是"+zhName(detected)+"，已自动切换。请对方再说一遍。";
+    restart();
+  } else if(!theirFixed){ S.set("seen","1"); showTheir(); }
+
+  if(r.translation){
+    history.push({src:text,tr:r.translation});
+    const h=document.createElement("div"); h.className="hitem";
+    h.innerHTML='<div class="src"></div><div class="tr"></div>'; h.children[0].textContent=text; h.children[1].textContent=r.translation;
+    $("hist").prepend(h);
+  }
+  showCaption(r.wrong_recognizer && !r.translation ? "" : text, r.translation, r.meaning, notice);
+  if(mode==="voice" && running && r.translation && !(r.wrong_recognizer && notice)) await speakOut(r.translation);
+}
+
+function caption(kind,msg){ const c=$("caption"); c.innerHTML=""; const d=document.createElement("div"); d.className=kind; d.textContent=msg; c.append(d); }
+function showCaption(src,tr,meaning,notice){
+  const c=$("caption"); c.innerHTML="";
+  if(src){ const s=document.createElement("div"); s.className="src"; s.textContent=src; c.append(s); }
+  if(tr){ const t=document.createElement("div"); t.className="tr"; t.textContent=tr; c.append(t); }
+  if(meaning){ const m=document.createElement("div"); m.className="meaning"; m.textContent="言外之意："+meaning; c.append(m); }
+  if(notice){ const n=document.createElement("div"); n.className="notice"; n.textContent=notice; c.append(n); }
+  if(!c.childNodes.length) caption("hint","没听清，请再说一遍");
+}
+
+function voiceFor(lang){
+  const vs=speechSynthesis.getVoices(), base=lang.split("-")[0];
+  return vs.find(v=>v.lang.replace("_","-")===lang)||vs.find(v=>v.lang.startsWith(base))||null;
+}
+function speakOut(text){
+  return new Promise(res=>{
+    speaking=true; if(rec){ try{rec.stop()}catch(_){} }
+    setState("speak");
+    try{
+      const u=new SpeechSynthesisUtterance(text); u.lang=myLang; const v=voiceFor(myLang); if(v) u.voice=v; u.rate=1.05;
+      u.onend=u.onerror=()=>{ speaking=false; if(running) listen(); else setState("idle"); res(); };
+      speechSynthesis.speak(u);
+    }catch(e){ speaking=false; res(); }
+  });
+}
+
+document.addEventListener("visibilitychange",()=>{ if(document.hidden && running){ stopAll(); caption("hint","切到后台已暂停，轻点圆圈继续"); } });
+</script>
+</body>
+</html>
